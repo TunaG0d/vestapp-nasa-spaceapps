@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+body {
+  @apply bg-[#0B0C10] text-white antialiased;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Popups de Leaflet con la identidad oficial (#1F2833 / #323E4C) y tamaño relativo (respeta A / A+) */
+.fr-popup .leaflet-popup-content-wrapper {
+  background: #1F2833;
+  color: #ffffff;
+  border: 1px solid #323E4C;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+.fr-popup .leaflet-popup-tip { background: #1F2833; border: 1px solid #323E4C; }
+.fr-popup .leaflet-popup-content { margin: 0.75rem 1rem; font-size: 0.875rem; line-height: 1.4; }
+.fr-popup a.leaflet-popup-close-button { color: #8C9BAA; }
+.fr-popup a.leaflet-popup-close-button:hover { color: #ffffff; }
+.fr-marker { background: transparent; border: 0; }
+.fr-marker:focus-visible { outline: 2px solid #67e8f9; outline-offset: 2px; border-radius: 50%; }
+.leaflet-container { font-family: inherit; background: #0B0C10; }
+.leaflet-control-attribution { background: rgba(31, 40, 51, 0.85) !important; color: #8C9BAA !important; }
+.leaflet-control-attribution a { color: #8C9BAA !important; }
+.leaflet-bar a { background: #1F2833; color: #ffffff; border-bottom-color: #323E4C; }
+.leaflet-bar a:hover { background: #323E4C; }
+
+@keyframes fr-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+.fr-halo { animation: fr-pulse 2.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}
+
+.reducir-movimiento *, .reducir-movimiento *::before, .reducir-movimiento *::after {
+  animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important;
+}
+
+/* Modo Alto Contraste (WCAG AAA - Relación 7:1) */
+.alto-contraste {
+  filter: contrast(125%);
+}
+.alto-contraste * {
+  border-color: rgba(255, 255, 255, 0.45) !important;
+}
+.alto-contraste button:focus-visible,
+.alto-contraste input:focus-visible,
+.alto-contraste select:focus-visible {
+  outline: 3px solid #00FFFF !important;
+  outline-offset: 3px !important;
+}

@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FireReady — Calendario de focos MODIS y VIIRS</title>
+<meta name="description" content="Calendario de actividad de fuego que armoniza focos MODIS y VIIRS en una grilla de 1 km.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#101418;--panel:#1a212b;--line:#4a5b6e;--text:#f4f7fb;--muted:#d5dee8;--accent:#ffb703;--ink:#1a1200}
+*{box-sizing:border-box}
+body{margin:0 auto;max-width:1240px;font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--text)}
+a{color:#9fd0ff}
+.skip{position:absolute;left:-999px;top:0}
+.skip:focus{left:8px;top:8px;z-index:9;background:#ffe08a;color:var(--ink);padding:8px 12px}
+header,main{padding:16px}
+header{border-bottom:1px solid var(--line)}
+h1{font-size:1.7rem;line-height:1.2;margin:0 0 6px}
+h2{font-size:1.05rem;margin:0 0 8px}
+.tag{margin:0;color:var(--accent);font-weight:700}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+nav a{background:#243140;color:var(--text);text-decoration:none;border-radius:999px;padding:6px 10px}
+main{display:grid;grid-template-columns:minmax(280px,380px) 1fr;gap:16px}
+@media(max-width:960px){main{grid-template-columns:1fr}}
+aside{position:sticky;top:8px;align-self:start}
+@media(max-width:960px){aside{position:static}}
+section,dialog{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+label,legend{display:block;color:var(--muted);font-size:.92rem;margin-top:8px}
+input,select,button{font:inherit;color:var(--text);background:#0e141b;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-height:44px}
+button{cursor:pointer;width:auto}
+button.pri{background:var(--accent);color:var(--ink);font-weight:700}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.row > *{flex:1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.k{background:#0e141b;border:1px solid var(--line);border-radius:8px;padding:8px}
+.k b{display:block;font-size:1.25rem}
+.muted{color:var(--muted)}
+#map{height:320px;border-radius:8px;margin:8px 0}
+.scroll{overflow-x:auto}
+table{border-collapse:separate;border-spacing:2px;width:100%}
+th,td{padding:4px 6px;text-align:center}
+th{color:var(--muted);font-weight:600}
+td{border-radius:3px;min-width:2.4rem}
+.badge{display:inline-block;padding:8px 12px;border-radius:8px;font-weight:800}
+.BAJO{background:#b7f0c8;color:#08301a}
+.MEDIO{background:#ffe08a;color:#3a2a00}
+.ALTO{background:#ffd0c8;color:#4a0d08}
+.al{padding:8px 10px;margin:8px 0;background:#0e141b;border-left:6px solid;border-radius:6px}
+.al.info{border-color:#7ad7ff}
+.al.warning{border-color:#ffb703}
+.al.critical{border-color:#ff8b7a}
+canvas{max-height:280px;margin-top:8px}
+:focus-visible{outline:3px solid #ffe08a;outline-offset:2px}
+dialog{max-width:560px;color:var(--text)}
+dialog::backdrop{background:rgba(0,0,0,.75)}
+pre{white-space:pre-wrap;background:#0e141b;padding:10px;border-radius:8px}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto !important;transition:none !important}}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+<header>
+<p class="tag">FireReady · NASA Space Apps Challenge</p>
+<h1>Calendario de actividad de fuego</h1>
+<p>MODIS y VIIRS en una misma grilla de 1 km, de noviembre de 2000 a hoy. Quien entra sin registrarse se trata como civil.</p>
+<nav aria-label="Secciones">
+<a href="#consulta">Consulta</a>
+<a href="#diagnostico">Diagnóstico</a>
+<a href="#calendario">Calendario</a>
+<a href="#comparacion">Año en curso</a>
+<a href="#alertas">Alertas</a>
+<a href="#conceptos">Conceptos</a>
+<a href="#prevencion">Prevención</a>
+<a href="#preferencias">Preferencias</a>
+</nav>
+</header>
+<main id="contenido">
+<aside>
+<section id="consulta">
+<h2>Área y período</h2>
+<p class="muted">Podés escribir latitud y longitud. El mapa es un complemento: dos clics marcan las esquinas del recuadro.</p>
+<div id="map" role="application" aria-label="Mapa para elegir el recuadro. También podés usar los campos de coordenadas."></div>
+<p id="maphint" class="muted" role="status"></p>
+<form id="query">
+<div class="grid2">
+<div><label for="n">Norte</label><input id="n" type="number" step="0.01" min="-90" max="90" value="-33" required></div>
+<div><label for="s">Sur</label><input id="s" type="number" step="0.01" min="-90" max="90" value="-38" required></div>
+<div><label for="w">Oeste</label><input id="w" type="number" step="0.01" min="-180" max="180" value="-74" required></div>
+<div><label for="e">Este</label><input id="e" type="number" step="0.01" min="-180" max="180" value="-70" required></div>
+<div><label for="d0">Desde</label><input id="d0" type="date" required></div>
+<div><label for="d1">Hasta</label><input id="d1" type="date" required></div>
+</div>
+<div class="row">
+<button type="button" id="pYtd">Este año</button>
+<button type="button" id="p5">5 años</button>
+<button type="button" id="p2012">Desde 2012</button>
+<button type="button" id="p2000">Desde 2000</button>
+</div>
+<button type="button" id="useView">Usar la vista del mapa</button>
+<label for="sensor">Sensor del CSV</label>
+<select id="sensor"><option value="all">MODIS y VIIRS</option><option value="MODIS">Solo MODIS</option><option value="VIIRS">Solo VIIRS</option></select>
+<label for="confidence">Confianza del CSV</label>
+<select id="confidence"><option value="all">Todas</option><option value="nominal">Nominal y alta</option><option value="high">Solo alta</option></select>
+<label><input id="harmonized" type="checkbox" checked style="width:auto;min-height:0"> Exportar la grilla armonizada de 1 km</label>
+<label for="key">MAP_KEY de NASA FIRMS</label>
+<input id="key" type="password" autocomplete="off">
+<div class="row">
+<button class="pri" type="submit" id="go">Analizar</button>
+<button type="button" id="csv">Descargar CSV</button>
+</div>
+<progress id="prog" value="0" max="1" hidden></progress>
+<p id="msg" class="muted" role="status"></p>
+</form>
+</section>
+<section>
+<h2>Tiempo en el centro del área</h2>
+<button type="button" id="wx">Consultar meteorología</button>
+<div id="wxout" class="muted"></div>
+</section>
+<section id="preferencias">
+<h2>Preferencias de alertas</h2>
+<p class="muted">Las reactivas describen lo que ya está pasando. Las proactivas avisan por el pronóstico y el tiempo, antes de que el conteo se dispare. El correo usa el rol guardado acá.</p>
+<form id="prefs">
+<label for="pname">Nombre</label><input id="pname" maxlength="80">
+<label for="pemail">Correo</label><input id="pemail" type="email" autocomplete="email">
+<label for="prole">Rol</label>
+<select id="prole">
+<option value="civil">Civil</option>
+<option value="bombero">Bombero</option>
+<option value="cientifico">Científico</option>
+</select>
+<label for="viewRole">Ver en pantalla como</label>
+<select id="viewRole">
+<option value="civil">Civil</option>
+<option value="bombero">Bombero</option>
+<option value="cientifico">Científico</option>
+</select>
+<label><input id="preactive" type="checkbox" checked style="width:auto;min-height:0"> Alertas reactivas</label>
+<label><input id="pproactive" type="checkbox" checked style="width:auto;min-height:0"> Alertas proactivas</label>
+<label for="pmin">Nivel mínimo</label>
+<select id="pmin"><option value="info">Todas</option><option value="warning">Avisos y críticas</option><option value="critical">Solo críticas</option></select>
+<fieldset>
+<legend>Tipos</legend>
+<label><input class="ptype" type="checkbox" value="count" checked style="width:auto;min-height:0"> Conteo anómalo</label>
+<label><input class="ptype" type="checkbox" value="new_area" checked style="width:auto;min-height:0"> Área nueva</label>
+<label><input class="ptype" type="checkbox" value="intense" checked style="width:auto;min-height:0"> Foco intenso</label>
+<label><input class="ptype" type="checkbox" value="weather" checked style="width:auto;min-height:0"> Meteorología</label>
+<label><input class="ptype" type="checkbox" value="forecast" checked style="width:auto;min-height:0"> Pronóstico</label>
+</fieldset>
+<label><input id="pbrowser" type="checkbox" style="width:auto;min-height:0"> Notificaciones del navegador</label>
+<label><input id="pemailon" type="checkbox" style="width:auto;min-height:0"> Enviar también por correo</label>
+<button class="pri" type="submit">Guardar preferencias</button>
+<p id="pmsg" class="muted" role="status"></p>
+</form>
+</section>
+</aside>
+<div>
+<section id="diagnostico" aria-live="polite">
+<h2>Diagnóstico de la zona</h2>
+<p class="muted">Elegí un área y un período. El nivel sale de tres señales: la última semana contra la historia, el tiempo de los próximos días y el modelo de la semana que viene.</p>
+<div id="diag"></div>
+</section>
+<section id="impacto">
+<h2>Impacto de la armonización</h2>
+<p class="muted">Misma temporada, tres conteos: detecciones MODIS, detecciones VIIRS y celdas de 1 km ya unificadas. El número escrito está también en la tabla.</p>
+<canvas id="impactChart" role="img" aria-label="Gráfico del impacto de la armonización por mes"></canvas>
+<div id="impactTable"></div>
+<p id="notes" class="muted"></p>
+</section>
+<section id="calendario">
+<h2>Calendario de actividad</h2>
+<p class="muted">Cada número es la actividad armonizada del mes. La fila Mediana usa solo meses completos. El asterisco marca un mes incompleto. El color repite el número: no hace falta distinguirlo para leer el dato.</p>
+<div class="row">
+<button type="button" id="modeCount" aria-pressed="true">Cantidad</button>
+<button type="button" id="modeAnom" aria-pressed="false">Anomalía</button>
+</div>
+<div id="cal" class="scroll"></div>
+</section>
+<section id="comparacion">
+<h2>Lo que va del año</h2>
+<p class="muted">El mismo tramo, del 1 de enero hasta el último día con datos, comparado con los años anteriores del período consultado.</p>
+<canvas id="ytdChart" role="img" aria-label="Totales del año en curso contra años anteriores"></canvas>
+<canvas id="monthChart" role="img" aria-label="Meses del año en curso contra la mediana histórica"></canvas>
+<div id="ytdTable"></div>
+</section>
+<section id="patrones">
+<h2>Patrones del período</h2>
+<p id="patText" class="muted"></p>
+<canvas id="pat1" role="img" aria-label="Media y mediana mensual"></canvas>
+<canvas id="pat2" role="img" aria-label="Actividad por año"></canvas>
+<canvas id="pat3" role="img" aria-label="Hora local de las detecciones"></canvas>
+</section>
+<section id="pronostico">
+<h2>Modelo de la semana que viene</h2>
+<div id="forecastBox" class="muted">Todavía no hay una consulta.</div>
+</section>
+<section id="cruce">
+<h2>Cruce entre sensores</h2>
+<div id="crossBox" class="muted">Cuando el período tiene MODIS y VIIRS, acá se ve cuántos focos de uno caen a menos de 1 km de un foco del otro, el mismo día.</div>
+</section>
+<section id="alertas">
+<h2>Alertas de esta consulta</h2>
+<p class="muted">Se filtran con tus preferencias. Generar el boletín usa el rol guardado, no la vista de previsualización.</p>
+<div id="alertList"></div>
+<button type="button" id="sendBulletin">Generar boletín de esta consulta</button>
+<div id="inbox"></div>
+</section>
+<section id="conceptos">
+<h2>Conceptos</h2>
+<h3>Foco activo</h3>
+<p>Un foco es una anomalía térmica que el satélite atribuye a combustión. No es lo mismo que la superficie quemada: un incendio grande puede ser varios focos, y una quema chica puede no verse.</p>
+<h3>MODIS y VIIRS</h3>
+<p>MODIS, en Terra y Aqua, observa desde noviembre de 2000 con píxeles de cerca de 1 km. VIIRS, desde 2012, mira a 375 m, ve fuegos más chicos y no pasa a la misma hora. Por eso las series crudas no se pueden poner en el mismo gráfico.</p>
+<h3>Grilla de 1 km</h3>
+<p>Cada detección cae en una celda de aproximadamente 1 km. Si el mismo día hay varias lecturas en esa celda, de un sensor o de los dos, cuentan como un solo foco. En los meses en que ya existe VIIRS, la celda vale 1. En los meses solo MODIS, se multiplica por la relación unión/MODIS de ese mes, estimada con los años en que ambos sensores coinciden.</p>
+<h3>Calendario, mediana y anomalía</h3>
+<p>El calendario muestra la actividad de cada mes. La mediana es el valor del medio entre los meses completos de otros años, y se mueve menos que el promedio cuando un año se quema mucho. La anomalía compara ese mes con el promedio de los otros años, en porcentaje.</p>
+<h3>Modelo</h3>
+<p>Predice si una celda va a tener al menos un foco la semana siguiente. Mira las semanas recientes, el entorno, la época del año y la climatología del lugar. Se queda con el que mejor resulta en las últimas semanas de historia: el modelo de gradient boosting o, si no lo supera, la climatología. Después, el índice meteorológico regional sube o baja esas probabilidades. Latitud, longitud y la elevación del centro del área aportan el contexto de terreno y clima. No predice la dirección del fuego ni los kilómetros quemados.</p>
+</section>
+<section id="prevencion">
+<h2>Prevención y acción</h2>
+<p>Estas orientaciones siguen el criterio habitual de protección civil: prepararse temprano, no iniciar fuego y obedecer a la autoridad local. No son un aviso oficial ni una orden de despacho. En Chile, los avisos públicos salen por SENAPRED y los cuerpos de bomberos; en otro país, por la agencia que corresponda.</p>
+<ul>
+<li>No hagas quemas ni fogatas si la autoridad no las autorizó.</li>
+<li>Mantené limpio el perímetro: pasto seco, hojas y ramas.</li>
+<li>Conocé dos salidas y cómo se entera tu grupo de un aviso.</li>
+<li>Si hay humo, cerrá ventanas. No te acerques a mirar.</li>
+<li>Si te dicen que evacúes, hacelo y no vuelvas hasta que lo habiliten.</li>
+<li>No bloquees caminos, banquinas ni accesos de bomberos.</li>
+</ul>
+<h3>Según el diagnóstico de esta consulta</h3>
+<ul id="actions"><li>Todavía no hay una consulta.</li></ul>
+</section>
+</div>
+</main>
+<dialog id="welcome" aria-labelledby="welcomeTitle">
+<h2 id="welcomeTitle">¿Cómo querés recibir los avisos?</h2>
+<p>Sin registro entrás como civil. Las alertas reactivas cuentan lo que ya ocurre. Las proactivas avisan por el tiempo y el pronóstico, aunque el conteo de hoy sea normal. Podés cambiarlo después en Preferencias.</p>
+<form id="welcomeForm">
+<label for="wname">Nombre (opcional)</label><input id="wname" maxlength="80">
+<label for="wrole">Rol</label>
+<select id="wrole"><option value="civil">Civil</option><option value="bombero">Bombero</option><option value="cientifico">Científico</option></select>
+<label><input id="wonpage" type="checkbox" checked style="width:auto;min-height:0"> Mostrar alertas en la página</label>
+<label><input id="wbrowser" type="checkbox" style="width:auto;min-height:0"> Pedir notificaciones del navegador</label>
+<label><input id="wemailon" type="checkbox" style="width:auto;min-height:0"> Quiero el boletín por correo</label>
+<label for="wemail">Correo</label><input id="wemail" type="email" autocomplete="email">
+<p id="wmsg" class="muted" role="status"></p>
+<div class="row">
+<button class="pri" type="submit" value="save">Continuar</button>
+<button type="button" id="asCivil" value="civil">Entrar como civil, sin avisos extra</button>
+</div>
+</form>
+</dialog>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const MON=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const ROLE={civil:"Civil",bombero:"Bombero",cientifico:"Científico"};
+const KEY="fireready.v1";
+const TYPES=["count","new_area","intense","weather","forecast"];
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const localISO=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+function detail(j){const d=j&&j.detail; if(!d) return "No se pudo completar."; if(Array.isArray(d)) return d.map(x=>x.msg||x).join(" "); return String(d)}
+const basePrefs=()=>({reactive:true,proactive:true,minLevel:"info",browser:false,email:false,types:Object.fromEntries(TYPES.map(t=>[t,true]))});
+let profile=null, jobId=null, R=null, calMode="count", charts=[];
+try{profile=JSON.parse(localStorage.getItem(KEY)||"null")}catch(e){profile=null}
+const map=L.map("map").setView([-35.5,-72],6);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(map);
+let rect, risk=L.layerGroup().addTo(map), corner=null;
+const bb=()=>({north:+$("n").value,south:+$("s").value,west:+$("w").value,east:+$("e").value});
+function drawBox(){const b=bb(); if(rect) rect.remove(); rect=L.rectangle([[b.south,b.west],[b.north,b.east]],{color:"#ffb703",weight:2}).addTo(map)}
+["n","s","w","e"].forEach(id=>$(id).addEventListener("change",()=>{drawBox(); if(rect) map.fitBounds(rect.getBounds(),{padding:[12,12]})}));
+drawBox();
+$("useView").onclick=()=>{const b=map.getBounds(); $("n").value=b.getNorth().toFixed(2); $("s").value=b.getSouth().toFixed(2); $("w").value=b.getWest().toFixed(2); $("e").value=b.getEast().toFixed(2); drawBox()};
+map.on("click",e=>{
+  if(!corner){corner=e.latlng; $("maphint").textContent="Ahora hacé clic en la esquina opuesta."}
+  else{const a=corner,b=e.latlng; corner=null;
+    $("n").value=Math.max(a.lat,b.lat).toFixed(2); $("s").value=Math.min(a.lat,b.lat).toFixed(2);
+    $("w").value=Math.min(a.lng,b.lng).toFixed(2); $("e").value=Math.max(a.lng,b.lng).toFixed(2);
+    drawBox(); map.fitBounds(rect.getBounds(),{padding:[12,12]}); $("maphint").textContent="Recuadro actualizado."}
+});
+function setRange(start){const now=new Date(); $("d0").value=start; $("d1").value=localISO(now)}
+const now=new Date();
+setRange(`${now.getFullYear()-5}-01-01`);
+$("pYtd").onclick=()=>setRange(`${now.getFullYear()}-01-01`);
+$("p5").onclick=()=>setRange(`${now.getFullYear()-5}-01-01`);
+$("p2012").onclick=()=>setRange("2012-01-01");
+$("p2000").onclick=()=>setRange("2000-11-01");
+if(sessionStorage.getItem("firms_key")) $("key").value=sessionStorage.getItem("firms_key");
+function readTypes(){const o={}; document.querySelectorAll(".ptype").forEach(el=>{o[el.value]=el.checked}); return o}
+function readPrefs(){return {reactive:$("preactive").checked, proactive:$("pproactive").checked, minLevel:$("pmin").value, browser:$("pbrowser").checked, email:$("pemailon").checked, types:readTypes()}}
+function fillPrefs(){
+  $("pname").value=profile.name||""; $("pemail").value=profile.email||""; $("prole").value=profile.role||"civil";
+  $("viewRole").value=profile.view||profile.role||"civil";
+  const p=profile.prefs||basePrefs();
+  $("preactive").checked=!!p.reactive; $("pproactive").checked=!!p.proactive; $("pmin").value=p.minLevel||"info";
+  $("pbrowser").checked=!!p.browser; $("pemailon").checked=!!p.email;
+  document.querySelectorAll(".ptype").forEach(el=>{el.checked=!p.types||p.types[el.value]!==false});
+}
+function store(){localStorage.setItem(KEY, JSON.stringify(profile)); fillPrefs()}
+async function syncProfile(){
+  if(!profile.email){profile.id=null; store(); return}
+  const body={id:profile.id, name:profile.name, email:profile.email, role:profile.role, prefs:profile.prefs};
+  const r=await fetch("/api/profile",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error(detail(await r.json()));
+  profile.id=(await r.json()).id; store();
+}
+function welcomeClose(next){profile=next; store(); $("welcome").close(); loadInbox()}
+$("asCivil").onclick=()=>welcomeClose({asked:true,id:null,name:"",email:"",role:"civil",view:"civil",prefs:{...basePrefs(),reactive:true,proactive:true,browser:false,email:false}});
+$("welcomeForm").onsubmit=async ev=>{
+  ev.preventDefault();
+  const email=$("wemail").value.trim();
+  const emailOn=$("wemailon").checked;
+  if(emailOn && !email.includes("@")){$("wmsg").textContent="Para el correo hace falta una dirección válida."; return}
+  let browser=$("wbrowser").checked;
+  if(browser && "Notification" in window){browser=(await Notification.requestPermission())==="granted"}
+  const onpage=$("wonpage").checked;
+  profile={asked:true,id:null,name:$("wname").value.trim(),email:emailOn?email:"",role:$("wrole").value,view:$("wrole").value,
+    prefs:{...basePrefs(),reactive:onpage,proactive:onpage,browser,email:emailOn}};
+  try{await syncProfile(); $("welcome").close(); $("pmsg").textContent="Preferencias guardadas."; loadInbox()}
+  catch(e){$("wmsg").textContent=e.message}
+};
+$("prefs").onsubmit=async ev=>{
+  ev.preventDefault();
+  profile.name=$("pname").value.trim(); profile.email=$("pemail").value.trim(); profile.role=$("prole").value;
+  profile.view=$("viewRole").value; profile.prefs=readPrefs(); profile.asked=true;
+  if(profile.prefs.browser && "Notification" in window && Notification.permission!=="granted"){
+    profile.prefs.browser=(await Notification.requestPermission())==="granted";
+  }
+  try{await syncProfile(); $("pmsg").textContent=profile.email?"Perfil guardado.":"Guardado en este navegador. Sin correo no hay boletín."; if(R) render(); loadInbox()}
+  catch(e){$("pmsg").textContent=e.message}
+};
+$("viewRole").onchange=()=>{profile.view=$("viewRole").value; store(); if(R) render()};
+$("welcome").addEventListener("cancel",ev=>{ev.preventDefault(); $("asCivil").click()});
+if(!profile||!profile.asked){$("welcome").showModal()} else fillPrefs();
+const ramp=["#440154","#3b528b","#21908d","#5dc863","#fde725"];
+const hex=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const mix=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
+const rgb=c=>"#"+c.map(v=>v.toString(16).padStart(2,"0")).join("");
+function col(stops,t){t=Math.max(0,Math.min(1,t)); const x=t*(stops.length-1),i=Math.min(Math.floor(x),stops.length-2),f=x-i; return rgb(mix(hex(stops[i]),hex(stops[i+1]),f))}
+const ink=c=>{const [r,g,b]=hex(c); return (r*299+g*587+b*114)/1000>150?"#111":"#fff"};
+function anomColor(a){const t=Math.max(-1,Math.min(1,a/100)); const neg=[20,70,130],mid=[236,240,244],pos=[140,48,0]; return rgb(t<0?mix(neg,mid,t+1):mix(mid,pos,t))}
+function wipe(){charts.splice(0).forEach(c=>c.destroy())}
+function chart(id,cfg){if(typeof Chart==="undefined") return; charts.push(new Chart($(id),cfg))}
+const scales={x:{ticks:{color:"#d5dee8"},grid:{color:"#2c3848"}},y:{ticks:{color:"#d5dee8"},grid:{color:"#2c3848"}}};
+const legend={labels:{color:"#f4f7fb"}};
+function visible(list){
+  const p=profile.prefs||basePrefs(); const rank={info:0,warning:1,critical:2};
+  return (list||[]).filter(a=>{
+    if(p.types && p.types[a.type]===false) return false;
+    if(a.proactive && !p.proactive) return false;
+    if(!a.proactive && !p.reactive) return false;
+    return (rank[a.level]||0)>=(rank[p.minLevel]||0);
+  });
+}
+function render(opts={}){
+  wipe(); risk.clearLayers();
+  if(!R||R.empty){$("diag").innerHTML="<p>No hay focos en ese recuadro y período.</p>"; return}
+  const role=profile.view||profile.role||"civil";
+  const aud=R.audiences[role]; const d=R.diagnosis; const k=R.kpis;
+  const bits=[["Actividad",d.activity.score],["Meteorología",d.weather.score],["Modelo",d.model.score]];
+  $("diag").innerHTML=`<p class="badge ${d.level}">${d.level} · vista ${esc(ROLE[role])}</p>
+    <p><strong>${esc(aud.headline)}</strong></p>
+    <p>${bits.map(([n,s])=>`${n}: ${s} de 3`).join(" · ")}</p>
+    <ul>${d.why.map(w=>`<li>${esc(w)}</li>`).join("")}</ul>`+
+    (role==="cientifico"&&aud.method?`<p class="muted">Factor unión/MODIS: ${aud.method.overall_factor??"s/d"} · Duplicados unidos: ${aud.method.duplicates_removed} (${aud.method.reduction_pct}%) · AUC modelo ${aud.method.roc_auc??"s/d"} frente a climatología ${aud.method.auc_climatology_only??"s/d"} · Publicado: ${esc(aud.method.selected_model||"s/d")}</p>`:"");
+  $("actions").innerHTML=aud.actions.map(a=>`<li>${esc(a)}</li>`).join("");
+  const cards=[["Detecciones crudas",k.hotspots_total,`MODIS ${k.modis} · VIIRS ${k.viirs}`],["Celdas de 1 km",k.harmonized_cells,"después de unir duplicados"],["Actividad armonizada",k.viirs_equivalent_total,`${k.first} → ${k.last}`],["Últimos 7 días",k.last_7d,k.last_7d_z==null?"sin anomalía calculable":`${k.last_7d_z}σ`],["Duplicados unidos",R.impact.duplicates_removed,`${R.impact.reduction_pct}% del crudo`]];
+  $("diag").insertAdjacentHTML("beforeend",`<div class="kpis">${cards.map(([a,b,c])=>`<div class="k"><span class="muted">${esc(a)}</span><b>${Number(b).toLocaleString("es")}</b><span class="muted">${esc(c)}</span></div>`).join("")}</div>`);
+  $("notes").textContent=R.notes.join(" ");
+  const months=R.impact.by_month;
+  chart("impactChart",{type:"bar",data:{labels:MON,datasets:[
+    {label:"MODIS crudo",data:months.map(m=>m.raw_modis),backgroundColor:"#7ad7ff"},
+    {label:"VIIRS crudo",data:months.map(m=>m.raw_viirs),backgroundColor:"#f4a261"},
+    {label:"Armonizado 1 km",data:months.map(m=>m.harmonized),backgroundColor:"#ffb703"}]},
+    options:{responsive:true,plugins:{legend},scales}});
+  $("impactTable").innerHTML=`<div class="scroll"><table><caption>Totales del período por mes</caption><tr><th>Mes</th><th>MODIS</th><th>VIIRS</th><th>1 km</th></tr>`+
+    months.map(m=>`<tr><th scope="row">${MON[m.month-1]}</th><td>${m.raw_modis}</td><td>${m.raw_viirs}</td><td>${m.harmonized}</td></tr>`).join("")+"</table></div>";
+  drawCalendar();
+  drawYtd();
+  const p=R.patterns;
+  $("patText").textContent=`Meses que concentran la mitad de la actividad: ${p.peak_months.map(m=>MON[m-1]).join(", ")||"sin datos"}. Tendencia: ${p.trend_pct_per_year==null?"hacen falta 5 años completos":(p.trend_pct_per_year>=0?"+":"")+p.trend_pct_per_year+"% por año"}. Detecciones de noche: ${p.night_share_pct??"s/d"}%.`;
+  chart("pat1",{type:"line",data:{labels:MON,datasets:[
+    {label:"Media",data:p.monthly.mean,borderColor:"#ffb703"},
+    {label:"Mediana",data:p.monthly.median,borderColor:"#7ad7ff"}]},options:{responsive:true,plugins:{legend},scales}});
+  chart("pat2",{type:"bar",data:{labels:Object.keys(p.yearly),datasets:[{label:"Actividad armonizada",data:Object.values(p.yearly),backgroundColor:"#2a9d8f"}]},options:{responsive:true,plugins:{legend},scales}});
+  chart("pat3",{type:"bar",data:{labels:[...Array(24).keys()].map(h=>h+"h"),datasets:[{label:"% de la actividad",data:p.diurnal_local,backgroundColor:"#8ecbff"}]},options:{responsive:true,plugins:{legend},scales}});
+  drawForecast();
+  drawCross();
+  drawAlerts(aud);
+  aud.alerts.filter(a=>a.lat!=null).forEach(a=>{
+    if(!visible([a]).length) return;
+    L.circleMarker([a.lat,a.lon],{radius:7,color:a.level==="critical"?"#ff8b7a":"#ffb703"}).bindTooltip(a.message).addTo(risk);
+  });
+  if(opts.notify && profile.prefs && profile.prefs.browser && "Notification" in window && Notification.permission==="granted"){
+    const top=visible(aud.alerts)[0];
+    if(top) new Notification("FireReady · "+d.level,{body:top.message});
+  }
+}
+function drawCalendar(){
+  const c=R.calendar;
+  const nums=c.values.flat().filter(x=>x!=null);
+  const mx=Math.max(...nums,1);
+  let h=`<table><caption>Calendario ${calMode==="count"?"de cantidad armonizada":"de anomalía respecto de otros años"}</caption><tr><th>Año</th>${MON.map(m=>`<th scope="col">${m}</th>`).join("")}</tr>`;
+  for(let i=c.years.length-1;i>=0;i--){
+    h+=`<tr><th scope="row">${c.years[i]}</th>`;
+    for(let m=0;m<12;m++){
+      const x=c.values[i][m], a=c.anomaly_pct[i][m], partial=c.partial[i][m];
+      if(x==null){h+=`<td aria-label="${MON[m]} ${c.years[i]}: sin dato">·</td>`; continue}
+      const bg=calMode==="count"?col(ramp,Math.sqrt(x/mx)): (a==null?"#243140":anomColor(a));
+      const shown=calMode==="count"?Math.round(x):(a==null?"·":`${a>=0?"+":""}${Math.round(a)}%`);
+      const label=`${MON[m]} ${c.years[i]}: ${Math.round(x)} focos armonizados${a==null?"":`, ${a>=0?"+":""}${Math.round(a)}% contra otros años`}${partial?", mes incompleto":""}`;
+      h+=`<td aria-label="${esc(label)}" style="background:${bg};color:${ink(bg)}">${shown}${partial?"*":""}</td>`;
+    }
+    h+="</tr>";
+  }
+  h+=`<tr><th scope="row">Mediana</th>`+c.median.map((v,m)=>`<td aria-label="Mediana de ${MON[m]}: ${v==null?"sin meses completos":Math.round(v)}">${v==null?"·":Math.round(v)}</td>`).join("")+"</tr></table>";
+  $("cal").innerHTML=h;
+}
+$("modeCount").onclick=()=>{calMode="count"; $("modeCount").setAttribute("aria-pressed","true"); $("modeAnom").setAttribute("aria-pressed","false"); if(R) drawCalendar()};
+$("modeAnom").onclick=()=>{calMode="anomaly"; $("modeAnom").setAttribute("aria-pressed","true"); $("modeCount").setAttribute("aria-pressed","false"); if(R) drawCalendar()};
+function drawYtd(){
+  const y=R.ytd;
+  chart("ytdChart",{type:"bar",data:{labels:y.years.map(r=>String(r.year)+(r.complete?"":"*")),datasets:[{label:"Actividad hasta el día "+y.day_of_year,data:y.years.map(r=>r.total),backgroundColor:"#ffb703"}]},options:{responsive:true,plugins:{legend},scales}});
+  const last=y.monthly[y.monthly.length-1];
+  const prev=y.monthly.filter(r=>r.year!==last.year && y.years.find(v=>v.year===r.year&&v.complete));
+  const med=last.months.map((_,i)=>{const xs=prev.map(r=>r.months[i]).filter(v=>v!=null); if(!xs.length) return null; xs.sort((a,b)=>a-b); const m=Math.floor(xs.length/2); return xs.length%2?xs[m]:(xs[m-1]+xs[m])/2});
+  chart("monthChart",{type:"bar",data:{labels:MON.slice(0,last.months.length),datasets:[
+    {label:String(last.year),data:last.months,backgroundColor:"#ffb703"},
+    {label:"Mediana de años completos",data:med,backgroundColor:"#7ad7ff"}]},options:{responsive:true,plugins:{legend},scales}});
+  $("ytdTable").innerHTML=`<p class="muted">Hasta ${esc(y.through)} (día ${y.day_of_year}). El asterisco marca un año que no cubre todo el tramo.</p><div class="scroll"><table><caption>Año en curso contra la historia cargada</caption><tr><th>Año</th><th>Total del tramo</th><th>Cobertura</th></tr>`+
+    y.years.map(r=>`<tr><th scope="row">${r.year}</th><td>${r.total}</td><td>${r.complete?"completa":"incompleta"}</td></tr>`).join("")+"</table></div>";
+}
+function drawForecast(){
+  const f=R.forecast;
+  if(!f||!f.available){$("forecastBox").textContent=f&&f.note?f.note:"Sin pronóstico."; return}
+  const m=f.metrics;
+  $("forecastBox").innerHTML=`<p>Semana <strong>${esc(f.for_week)}</strong>. Publicado: <strong>${esc(f.selected)}</strong>. Celda del modelo: ${f.cell_deg.toFixed(2)}°.</p>
+    <table><caption>Validación de las últimas ${m.holdout_weeks} semanas</caption><tr><th>Referencia</th><th>ROC-AUC</th></tr>
+    <tr><th scope="row">Modelo (${esc(m.model)})</th><td>${m.roc_auc}</td></tr>
+    <tr><th scope="row">Solo climatología</th><td>${m.auc_climatology_only}</td></tr>
+    <tr><th scope="row">Persistencia de la última semana</th><td>${m.auc_last_week_persistence}</td></tr></table>
+    <p class="muted">${esc(f.note)} Tasa base del holdout: ${m.base_rate}. Precisión media: ${m.avg_precision}.</p>
+    <ol>${(f.cells||[]).slice(0,5).map(c=>`<li>${Math.round(c.p*100)}% en ${c.lat}, ${c.lon}</li>`).join("")}</ol>`;
+  (f.cells||[]).slice(0,200).forEach(c=>{const h=f.cell_deg/2;
+    L.rectangle([[c.lat-h,c.lon-h],[c.lat+h,c.lon+h]],{stroke:false,fillColor:col(["#fff3c4","#fd8d3c","#b10026"],c.p),fillOpacity:.65})
+      .bindTooltip(Math.round(c.p*100)+"%").addTo(risk)});
+}
+function drawCross(){
+  const c=R.crossref;
+  if(!c){$("crossBox").textContent="Hace falta que el período tenga detecciones de los dos sensores."; return}
+  $("crossBox").innerHTML=`<p>Últimos ${c.days} días, el mismo día, a menos de ${c.radius_km} km.</p>
+    <div class="kpis"><div class="k"><span class="muted">MODIS con un VIIRS cerca</span><b>${c.modis_confirmed_pct??"s/d"}%</b><span class="muted">${c.modis_confirmed} de ${c.modis_total}</span></div>
+    <div class="k"><span class="muted">VIIRS con un MODIS cerca</span><b>${c.viirs_confirmed_pct??"s/d"}%</b><span class="muted">${c.viirs_confirmed} de ${c.viirs_total}</span></div></div>`;
+}
+function drawAlerts(aud){
+  const list=visible(aud.alerts);
+  $("alertList").innerHTML=list.length?list.map(a=>`<article class="al ${a.level}"><p><strong>${a.proactive?"Prevención":"Situación actual"} · ${esc(a.level)}</strong> · ${esc(a.date)}</p><p>${esc(a.message)}</p></article>`).join(""):"<p>Ninguna alerta pasa el filtro de tus preferencias.</p>";
+}
+$("query").onsubmit=async ev=>{
+  ev.preventDefault();
+  const body={...bb(),start:$("d0").value,end:$("d1").value,forecast:true};
+  if(!(body.south<body.north && body.west<body.east)){$("msg").textContent="Revisá el recuadro: el sur tiene que ser menor que el norte, y el oeste menor que el este."; return}
+  sessionStorage.setItem("firms_key",$("key").value);
+  const headers={"Content-Type":"application/json"}; if($("key").value) headers["X-Map-Key"]=$("key").value;
+  $("go").disabled=true; $("prog").hidden=false; $("msg").textContent="Iniciando…";
+  try{
+    const r=await fetch("/api/analyze",{method:"POST",headers,body:JSON.stringify(body)});
+    if(!r.ok){$("msg").textContent=detail(await r.json()); return}
+    jobId=(await r.json()).job;
+    for(;;){
+      await new Promise(res=>setTimeout(res,1500));
+      const j=await (await fetch("/api/jobs/"+jobId)).json();
+      $("prog").value=j.progress||0; $("msg").textContent=j.message||"";
+      if(j.status==="done"){R=j.result; $("prog").hidden=true; render({notify:true}); $("diagnostico").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"start"}); return}
+      if(j.status==="error"){$("prog").hidden=true; return}
+    }
+  }catch(e){$("msg").textContent="No se pudo hablar con el servidor."}
+  finally{$("go").disabled=false}
+};
+$("csv").onclick=()=>{
+  const q=new URLSearchParams({...bb(),start:$("d0").value,end:$("d1").value,sensor:$("sensor").value,confidence:$("confidence").value,harmonized:$("harmonized").checked?"1":"0"});
+  location="/api/hotspots.csv?"+q;
+};
+async function loadInbox(){
+  if(!profile||!profile.id){$("inbox").innerHTML="<p class='muted'>Cuando guardás un correo, los boletines quedan en esta bandeja.</p>"; return}
+  const r=await fetch("/api/profile/"+profile.id+"/bulletins");
+  if(!r.ok){$("inbox").textContent="No se pudo leer la bandeja."; return}
+  const rows=await r.json();
+  $("inbox").innerHTML=rows.length?rows.map(b=>`<article><h3>${esc(b.subject)}</h3><p class="muted">${esc(b.status)} · ${esc(b.created)}</p><pre>${esc(b.body)}</pre></article>`).join(""):"<p class='muted'>Todavía no hay boletines.</p>";
+}
+$("sendBulletin").onclick=async()=>{
+  if(!profile.email||!profile.id){$("msg").textContent="Para el boletín hace falta un correo guardado en Preferencias."; return}
+  if(!jobId){$("msg").textContent="Primero analizá un área."; return}
+  $("msg").textContent="Armando el boletín…";
+  try{await syncProfile();
+    const r=await fetch("/api/bulletins",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile_id:profile.id,job:jobId})});
+    const j=await r.json();
+    $("msg").textContent=r.ok?j.status:detail(j);
+    if(r.ok) loadInbox();
+  }catch(e){$("msg").textContent=e.message}
+};
+const WX={low:"bajo",moderate:"moderado",high:"alto",extreme:"extremo"};
+$("wx").onclick=async()=>{
+  const b=bb(); const la=(b.north+b.south)/2, lo=(b.east+b.west)/2;
+  $("wxout").textContent="Consultando…";
+  const r=await fetch(`/api/conditions?lat=${la}&lon=${lo}`);
+  if(!r.ok){$("wxout").textContent="El servicio meteorológico no respondió."; return}
+  const d=await r.json();
+  const days=(d.days||[]).filter(x=>x.date>=localISO(new Date())).slice(0,10);
+  const tone={low:"#b7f0c8",moderate:"#ffe08a",high:"#f4a261",extreme:"#ffb4a8"};
+  $("wxout").innerHTML=`<p>Elevación del punto central: ${d.elevation_m??"s/d"} m. Índice propio, no un FWI oficial.</p><table><caption>Próximos días</caption>`+
+    days.map(x=>`<tr><th scope="row">${esc(x.date.slice(5))}</th><td style="background:${tone[x.level]||"#eee"};color:#111">${esc(WX[x.level]||x.level)} (${x.index}) · ${Math.round(x.tmax)}°C · HR ${Math.round(x.rhmin)}% · ${x.dry_days} días secos</td></tr>`).join("")+"</table>";
+};
+if(profile&&profile.asked) loadInbox();
+</script>
+</body>
+</html>
